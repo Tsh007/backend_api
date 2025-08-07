@@ -8,21 +8,18 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      # Step 1: Get your code
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Step 2: Set up Node.js
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'npm'
 
-      # Step 3: Install dependencies
       - name: Install dependencies
         run: npm ci
 
-      # Step 4: Deploy to VM using SSH
       - name: Deploy to VM
         uses: appleboy/ssh-action@v1
         with:
@@ -31,43 +28,45 @@ jobs:
           key: ${{ secrets.VM_SSH_KEY }}
           script: |
             # Create app directory
-            mkdir -p /home/azureuser/app
+            sudo mkdir -p /opt/app
+            sudo chown azureuser:azureuser /opt/app
             
-            # Copy code (exclude unnecessary files)
+            # Copy code using secure method
             rsync -av --delete \
               --exclude='.git/' \
-              --exclude='node_modules/' \
-              ./ /home/azureuser/app/
+              --exclude='.github/' \
+              --rsync-path="sudo rsync" \
+              $GITHUB_WORKSPACE/ ${{ secrets.VM_USERNAME }}@${{ secrets.VM_HOST }}:/opt/app/
             
-            # Navigate to app directory
-            cd /home/azureuser/app
+            # Set ownership
+            sudo chown -R azureuser:azureuser /opt/app
             
             # Install production dependencies
+            cd /opt/app
             npm ci --production
             
-            # Create systemd service file
-            sudo bash -c 'cat > /etc/systemd/system/hello-api.service <<EOF
+            # Create systemd service
+            sudo tee /etc/systemd/system/hello-api.service > /dev/null <<EOF
             [Unit]
             Description=Hello API Service
             After=network.target
 
             [Service]
             User=azureuser
-            WorkingDirectory=/home/azureuser/app
-            ExecStart=/usr/bin/node index.js
+            WorkingDirectory=/opt/app
+            ExecStart=$(which node) index.js
             Restart=always
             Environment=NODE_ENV=production
+            Environment=PATH=/usr/bin:/usr/local/bin
 
             [Install]
             WantedBy=multi-user.target
-            EOF'
+            EOF
             
-            # Reload services
+            # Reload and restart service
             sudo systemctl daemon-reload
-            
-            # Enable and start service
             sudo systemctl enable hello-api
             sudo systemctl restart hello-api
-            
-            # Verify service status
+            sleep 5
             sudo systemctl status hello-api
+            sudo ss -tulpn | grep 80
