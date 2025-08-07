@@ -1,6 +1,7 @@
 const express = require('express');
 const app = express();
-const PORT = 80;
+// Use port 3000 instead of 80
+const PORT = process.env.PORT || 3000;
 
 app.get('/sayHello', (req, res) => {
   res.json({ message: "Hello User." });
