@@ -24,7 +24,7 @@ jobs:
 
       # Step 4: Deploy to VM using SSH
       - name: Deploy to VM
-        uses: appleboy/ssh-action@v1.0.7
+        uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.VM_HOST }}
           username: ${{ secrets.VM_USERNAME }}
